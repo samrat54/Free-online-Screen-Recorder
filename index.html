@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Free Online Screen Recorder</title>
+    <style>
+        :root {
+            --primary-color: #4a90e2;
+            --secondary-color: #f5a623;
+            --background-color: #f4f5f7;
+            --dark-color: #333;
+            --light-color: #fff;
+            --gray-color: #888;
+            --danger-color: #d0021b;
+            --success-color: #7ed321;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--background-color);
+            color: var(--dark-color);
+            margin: 0;
+            padding: 2rem 1rem;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+        .container {
+            width: 100%;
+            max-width: 800px;
+            background: var(--light-color);
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+            text-align: center;
+        }
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+        .subtitle {
+            color: var(--gray-color);
+            margin-bottom: 2rem;
+        }
+        .control-btn {
+            background: var(--primary-color);
+            color: var(--light-color);
+            border: none;
+            border-radius: 8px;
+            padding: 0.8rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s, transform 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+        }
+        .control-btn:hover {
+            background: #357abd;
+            transform: translateY(-2px);
+        }
+        #startBtn {
+            font-size: 1.5rem;
+            padding: 1rem 2.5rem;
+            border-radius: 10px;
+        }
+        .video-preview-container {
+            position: relative;
+            width: 100%;
+            padding-top: 56.25%;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 1rem;
+        }
+        #previewVideo {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        .recording-indicator {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            background: var(--danger-color);
+            color: var(--light-color);
+            padding: 0.3rem 0.8rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            animation: pulse 1.5s infinite;
+            z-index: 10;
+        }
+        body[data-mode="paused"] .recording-indicator {
+            background: var(--secondary-color);
+            animation: none;
+        }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+
+        /* State-driven UI with data-mode attribute */
+        #mainControls, #postRecordingControls, .recording-indicator, #downloadBtn, #pauseResumeBtn, #stopRecordingBtn, #newRecordingBtn {
+            display: none;
+        }
+        body[data-mode="idle"] #mainControls { display: flex; justify-content: center; margin-bottom: 2rem; }
+        body[data-mode="recording"] #postRecordingControls, body[data-mode="paused"] #postRecordingControls, body[data-mode="finished"] #postRecordingControls { display: flex; justify-content: center; gap: 1rem; margin-bottom: 2rem; }
+        body[data-mode="recording"] .recording-indicator, body[data-mode="paused"] .recording-indicator { display: block; }
+        body[data-mode="recording"] #pauseResumeBtn, body[data-mode="recording"] #stopRecordingBtn { display: flex; }
+        body[data-mode="paused"] #pauseResumeBtn, body[data-mode="paused"] #stopRecordingBtn { display: flex; }
+        body[data-mode="finished"] #downloadBtn { display: flex; }
+        body[data-mode="finished"] #newRecordingBtn { display: flex; }
+        
+        #pauseResumeBtn[data-status="recording"]::before { content: 'Pause'; }
+        #pauseResumeBtn[data-status="paused"]::before { content: 'Resume'; }
+
+        #downloadBtn { background: var(--success-color); }
+        #downloadBtn:hover { background: #68b317; }
+        
+        /* Recordings List */
+        .recordings-container { margin-top: 2rem; text-align: left; }
+        .recordings-container h2 { margin-bottom: 1rem; }
+        #recordingsList { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 1rem; }
+        .recording-item { display: flex; align-items: center; gap: 1rem; background: #f9f9f9; padding: 1rem; border-radius: 8px; border: 1px solid #eee; }
+        .recording-info { flex-grow: 1; display: flex; flex-direction: column; }
+        .recording-actions button { background: none; border: 1px solid #ccc; border-radius: 6px; padding: 0.5rem 1rem; cursor: pointer; color: #555; margin-left: 0.5rem; }
+        .recording-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Modal Styles */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s; z-index: 100; }
+        .modal-overlay.show { opacity: 1; visibility: visible; }
+        .modal-content { background: var(--light-color); padding: 2rem; border-radius: 12px; width: 90%; max-width: 500px; transform: scale(0.9); transition: transform 0.3s; }
+        .modal-overlay.show .modal-content { transform: scale(1); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+        .modal-title { font-size: 1.5rem; margin: 0; }
+        .close-modal { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--gray-color); }
+        .setting { margin-bottom: 1.5rem; text-align: left; }
+        .setting label { display: block; font-weight: 600; margin-bottom: 0.5rem; }
+        .setting select { width: 100%; padding: 0.8rem; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem; }
+        #startRecordingBtn { width: 100%; padding: 1rem; font-size: 1.2rem; }
+        .recording-type-selector { display: flex; gap: 1rem; margin-bottom: 1.5rem; justify-content: center; }
+        .recording-type-option { padding: 1rem; border: 2px solid #ccc; border-radius: 8px; cursor: pointer; transition: all 0.2s; flex: 1; }
+        .recording-type-option.selected { border-color: var(--primary-color); background-color: #eaf2fa; box-shadow: 0 4px 8px rgba(74, 144, 226, 0.2); }
+        .recording-type-option h4 { margin: 0 0 0.25rem 0; }
+        .recording-type-option p { margin: 0; font-size: 0.9rem; color: var(--gray-color); }
+    </style>
+</head>
+<body data-mode="idle">
+
+    <div class="container">
+        <h1>Free Online Screen Recorder</h1>
+        <p class="subtitle">A simple, free tool to capture your screen and audio.</p>
+
+        <div id="mainControls">
+            <button class="control-btn" id="startBtn">Start Recording</button>
+        </div>
+
+        <div class="video-preview-container">
+            <video id="previewVideo" muted playsinline></video>
+            <div class="recording-indicator" id="recIndicator"><span id="timer">00:00</span>&nbsp;REC</div>
+        </div>
+
+        <div id="postRecordingControls">
+            <button class="control-btn" id="pauseResumeBtn" data-status="recording"></button>
+            <button class="control-btn" id="stopRecordingBtn" style="background-color: var(--danger-color);">Stop</button>
+            <a href="#" class="control-btn" id="downloadBtn">Download</a>
+            <button class="control-btn" id="newRecordingBtn">New Recording</button>
+        </div>
+
+        <div class="recordings-container">
+            <h2>Your Recordings</h2>
+            <ul id="recordingsList"></ul>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Recording Options</h2>
+                <button class="close-modal" id="closeModalBtn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <h4>1. Choose what to record</h4>
+                <div class="recording-type-selector" id="recordingTypeSelector">
+                    <div class="recording-type-option selected" data-type="screen"><h4>Screen</h4><p>Entire screen, window, or tab</p></div>
+                    <div class="recording-type-option" data-type="camera"><h4>Camera</h4><p>Only your webcam</p></div>
+                    <div class="recording-type-option" data-type="both"><h4>Both</h4><p>Screen and camera</p></div>
+                </div>
+                <h4>2. Choose audio sources</h4>
+                <div class="setting">
+                    <label for="micSelect">Microphone</label>
+                    <select id="micSelect"><option value="none">No Microphone</option></select>
+                </div>
+                <div class="setting" id="systemAudioSetting">
+                    <label><input type="checkbox" id="systemAudioCheckbox"> Include System Audio</label>
+                </div>
+
+                <div id="advancedOptionsToggle" style="cursor: pointer; padding: 0.5rem; border-radius: 6px; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='transparent'">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <h4 style="margin: 0; font-size: 1.1rem;">3. Advanced Options (Optional)</h4>
+                        <span id="advancedOptionsArrow" style="font-size: 1.2rem;">&#9662;</span>
+                    </div>
+                    <p style="margin: 0.25rem 0 0 0; font-size: 0.9rem; color: var(--gray-color); text-align: left;">Customize format (WebM/MP4) and quality (480p-1080p).</p>
+                </div>
+                <div id="advancedOptionsContent" style="display: none;">
+                    <div class="setting">
+                        <label for="formatSelect">Recording Format</label>
+                        <select id="formatSelect">
+                            <option value="webm">WebM (Recommended)</option>
+                            <option value="mp4">MP4</option>
+                        </select>
+                    </div>
+                    <div class="setting">
+                        <label for="qualitySelect">Video Quality</label>
+                        <select id="qualitySelect">
+                            <option value="720">Medium (720p)</option>
+                            <option value="1080">High (1080p)</option>
+                            <option value="480">Low (480p)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button class="control-btn" id="startRecordingBtn">Continue</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="./js/screen.js"></script>
+</body>
+</html>
